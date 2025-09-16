@@ -71,7 +71,7 @@ export class MyMCP extends McpAgent<Env> {
 
     // ---------------- New tools (talk to your FastAPI) ----------------
 
-    // 1) list_universe -> hits /advice (which returns DB rows)
+    // 1) list_universe
     this.server.tool(
 		"list_universe",
 		"List tickers and sectors from the backend (Neo4j via FastAPI). Optional sector and limit.",
@@ -98,7 +98,7 @@ export class MyMCP extends McpAgent<Env> {
 	);
 
 
-    // 2) explain_universe -> hits /explain (LLM rationale; body optional)
+    // 2) explain_universe
     this.server.tool(
       "explain_universe",
       "Get a short educational rationale via the LLM.",
@@ -119,10 +119,29 @@ export class MyMCP extends McpAgent<Env> {
         return { content: [{ type: "text", text }] };
       }
     );
+
+	// 3) Asset details
+	this.server.tool(
+	"get_asset_details",
+	"Fetch one asset's basic details (ticker, name, sector).",
+	{ ticker: z.string().min(1) },
+	async ({ ticker }) => {
+		const API_BASE = (this.env.API_BASE || "").replace(/\/+$/, "");
+		const res = await fetch(`${API_BASE}/asset/${encodeURIComponent(ticker)}`, {
+		cf: { cacheTtl: 0, cacheEverything: false },
+		headers: { "cache-control": "no-store" },
+		});
+		if (!res.ok) {
+		return { content: [{ type: "text", text: `Backend /asset failed: ${res.status}` }] };
+		}
+		const data = await res.json();
+		return { content: [{ type: "text", text: JSON.stringify(data.item, null, 2) }] };
+	}
+	);
   }
 }
 
-// Keep your SSE and HTTP endpoints exactly as before
+// Keep SSE and HTTP endpoints
 export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const url = new URL(request.url);
