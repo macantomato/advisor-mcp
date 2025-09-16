@@ -73,24 +73,30 @@ export class MyMCP extends McpAgent<Env> {
 
     // 1) list_universe -> hits /advice (which returns DB rows)
     this.server.tool(
-      "list_universe",
-      "List tickers and sectors from the backend (Neo4j via FastAPI).",
-      {}, // no params
-      async () => {
-        const res = await fetch(`${API_BASE}/advice?t=${Date.now()}`, {
-          cf: { cacheTtl: 0, cacheEverything: false },
-          headers: { "cache-control": "no-store" },
-        });
-        if (!res.ok) {
-          return {
-            content: [{ type: "text", text: `Backend /advice failed: ${res.status}` }],
-          };
-        }
-        const data = await res.json();
-        const items = Array.isArray(data?.items) ? data.items : [];
-        return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
-      }
-    );
+		"list_universe",
+		"List tickers and sectors from the backend (Neo4j via FastAPI). Optional sector and limit.",
+	{
+		sector: z.string().optional(),
+		limit: z.number().int().min(1).max(500).default(100),
+	},
+	async ({ sector, limit }) => {
+		const API_BASE = (this.env.API_BASE || "").replace(/\/+$/, "");
+		const qs = new URLSearchParams({ limit: String(limit) });
+		if (sector && sector.trim()) qs.set("sector", sector.trim());
+		const url = `${API_BASE}/universe?${qs.toString()}`;
+		const res = await fetch(url, {
+		cf: { cacheTtl: 0, cacheEverything: false },
+		headers: { "cache-control": "no-store" },
+		});
+		if (!res.ok) {
+		return { content: [{ type: "text", text: `Backend /universe failed: ${res.status}` }] };
+		}
+		const data = await res.json();
+		const items = Array.isArray(data?.items) ? data.items : [];
+		return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
+		}
+	);
+
 
     // 2) explain_universe -> hits /explain (LLM rationale; body optional)
     this.server.tool(
