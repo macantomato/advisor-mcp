@@ -14,6 +14,9 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	"vars": {
+		"API_BASE": "https://api-advisor.onrender.com"
+	},
 	"migrations": [
 		{
 			"new_sqlite_classes": [
