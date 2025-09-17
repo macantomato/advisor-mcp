@@ -4,7 +4,7 @@ import { z } from "zod";
 
 // Env type for Wrangler bindings (vars from wrangler.jsonc)
 type Env = {
-  API_BASE: string; // e.g., "https://api-advisor.onrender.com" (no trailing slash)
+  API_BASE: string; // e.g., "https://api-advisor.onrender.com"
 };
 
 // Define our MCP agent with tools
@@ -30,46 +30,8 @@ export class MyMCP extends McpAgent<Env> {
       );
       return;
     }
-	
 
-    // ---------------- Existing demo tools ----------------
-    this.server.tool("add", { a: z.number(), b: z.number() }, async ({ a, b }) => ({
-      content: [{ type: "text", text: String(a + b) }],
-    }));
-
-    this.server.tool(
-      "calculate",
-      {
-        operation: z.enum(["add", "subtract", "multiply", "divide"]),
-        a: z.number(),
-        b: z.number(),
-      },
-      async ({ operation, a, b }) => {
-        let result: number;
-        switch (operation) {
-          case "add":
-            result = a + b;
-            break;
-          case "subtract":
-            result = a - b;
-            break;
-          case "multiply":
-            result = a * b;
-            break;
-          case "divide":
-            if (b === 0) {
-              return {
-                content: [{ type: "text", text: "Error: Cannot divide by zero" }],
-              };
-            }
-            result = a / b;
-            break;
-        }
-        return { content: [{ type: "text", text: String(result) }] };
-      },
-    );
-
-    // ---------------- New tools (talk to your FastAPI) ----------------
+    // ---------------- Tools - FastAPI) ----------------
 
     // 1) list_universe
     this.server.tool(
@@ -136,6 +98,27 @@ export class MyMCP extends McpAgent<Env> {
 		}
 		const data = await res.json();
 		return { content: [{ type: "text", text: JSON.stringify(data.item, null, 2) }] };
+	}
+	);
+
+	// 4) Get asset starting with __
+	this.server.tool(
+	"search_assets",
+	"Find assets by ticker/name prefix (case-insensitive).",
+	{ q: z.string().min(1), limit: z.number().int().min(1).max(100).default(10) },
+	async ({ q, limit }) => {
+		const API_BASE = (this.env.API_BASE || "").replace(/\/+$/, "");
+		const qs = new URLSearchParams({ q, limit: String(limit) });
+		const res = await fetch(`${API_BASE}/search?${qs.toString()}`, {
+		cf: { cacheTtl: 0, cacheEverything: false },
+		headers: { "cache-control": "no-store" },
+		});
+		if (!res.ok) {
+		return { content: [{ type: "text", text: `Backend /search failed: ${res.status}` }] };
+		}
+		const data = await res.json();
+		const items = Array.isArray(data?.items) ? data.items : [];
+		return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
 	}
 	);
   }
