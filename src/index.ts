@@ -121,6 +121,53 @@ export class MyMCP extends McpAgent<Env> {
 		return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
 	}
 	);
+
+	this.server.tool(
+	"ingest_from_finnhub",
+	"Ingest company profiles from Finnhub for up to 50 tickers.",
+	{ tickers: z.array(z.string()).min(1).max(50) },
+	async ({ tickers }) => {              // ← remove ", extra"
+		const API_BASE = (this.env.API_BASE || "").replace(/\/+$/, "");
+		const cleaned = Array.from(new Set(
+		tickers.map(t => t.trim().toUpperCase()).filter(Boolean)
+		)).slice(0, 50);
+
+		if (!cleaned.length) {
+		return { content: [{ type: "text", text: "No valid tickers provided." }] };
+		}
+
+		const qs = cleaned.map(t => `tickers=${encodeURIComponent(t)}`).join("&");
+		const res = await fetch(`${API_BASE}/ingest/finnhub?${qs}`, {
+		cf: { cacheTtl: 0, cacheEverything: false },
+		headers: { "cache-control": "no-store" },
+		});
+		if (!res.ok) {
+		const body = await res.text().catch(() => "");
+		return { content: [{ type: "text", text: `Backend /ingest/finnhub ${res.status}: ${body.slice(0,200)}` }] };
+		}
+		const data = await res.json();
+		return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+	}
+	);
+	this.server.tool(
+	"run_fundamentals",
+	"Run fundamentals_v0 analyzer for a ticker (ret JSON report).",
+	{ ticker: z.string().min(1) },
+	async ({ ticker }) => {
+		const API_BASE = (this.env.API_BASE || "").replace(/\/+$/, "");
+		const res = await fetch(`${API_BASE}/analyze/fundamentals?ticker=${encodeURIComponent(ticker)}`, {
+		cf: { cacheTtl: 0, cacheEverything: false },
+		headers: { "cache-control": "no-store" },
+		});
+		if (!res.ok) {
+		const body = await res.text().catch(() => "");
+		return { content: [{ type: "text", text: `Backend /analyze/fundamentals ${res.status}: ${body.slice(0,200)}` }] };
+		}
+		const data = await res.json();
+		return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+	}
+	);
+
   }
 }
 
